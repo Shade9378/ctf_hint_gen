@@ -4,6 +4,8 @@ import subprocess
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
 
 
 CONTAINER_NAME = "student_shell" # container file name should be an args
@@ -107,8 +109,14 @@ printf '__LOGGER_PWD__:%s\\n' "$PWD"
         print(f"Logging to: {self.log_path}")
 
         while True:
+            history_path = Path("data/logs/.client_shell_history")
+            history_path.parent.mkdir(parents=True, exist_ok=True)
+
+            session = PromptSession(
+                history=FileHistory(str(history_path))
+            )
             try:
-                cmd = input(f"ctf:{self.cwd}$ ").strip()
+                cmd = session.prompt(f"ctf:{self.cwd}$ ").strip()
             except EOFError:
                 self.write_log({
                     "time": self.timestamp(),
