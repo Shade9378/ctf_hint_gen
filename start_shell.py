@@ -108,13 +108,14 @@ printf '__LOGGER_PWD__:%s\\n' "$PWD"
         print("Client shell started. Type commands. Type 'exit' to quit.")
         print(f"Logging to: {self.log_path}")
 
-        while True:
-            history_path = Path("data/logs/.client_shell_history")
-            history_path.parent.mkdir(parents=True, exist_ok=True)
+        history_path = Path("data/logs/.client_shell_history")
+        history_path.parent.mkdir(parents=True, exist_ok=True)
 
-            session = PromptSession(
-                history=FileHistory(str(history_path))
-            )
+        session = PromptSession(
+            history=FileHistory(str(history_path))
+        )
+        
+        while True:
             try:
                 cmd = session.prompt(f"ctf:{self.cwd}$ ").strip()
             except EOFError:
