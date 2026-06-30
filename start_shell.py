@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-CONTAINER_NAME = "student_shell"
+CONTAINER_NAME = "student_shell" # container file name should be an args
 LOG_DIR = Path("data/logs")
 
 
@@ -137,7 +137,9 @@ printf '__LOGGER_PWD__:%s\\n' "$PWD"
                 print("Exiting client shell.")
                 break
 
-            if cmd.lower() == "hint":
+            parts = shlex.split(cmd)
+
+            if parts and parts[0] == "hint":
                 entry = self.handle_hint_request(cmd)
             else:
                 entry = self.run_command(cmd)
@@ -146,7 +148,24 @@ printf '__LOGGER_PWD__:%s\\n' "$PWD"
                 print(entry["output"])
 
     def handle_hint_request(self, cmd: str) -> dict:
-        hint_text = "[hint placeholder] Hint generation is not connected yet."
+        parts = shlex.split(cmd)
+
+        system_requested = None
+        system_type = "trad"  # default fallback
+
+        if "--sys" in parts:
+            sys_index = parts.index("--sys")
+
+            if sys_index + 1 < len(parts):
+                system_requested = parts[sys_index + 1]
+
+                if system_requested in {"llm", "hybrid", "trad"}:
+                    system_type = system_requested
+
+        hint_text = (
+            f"[debug] requested_system={system_requested or '(none)'}; "
+            f"selected_system={system_type}"
+        )
 
         log_entry = {
             "time": self.timestamp(),
@@ -156,6 +175,8 @@ printf '__LOGGER_PWD__:%s\\n' "$PWD"
             "output": hint_text,
             "exit_code": 0,
             "cwd": self.cwd,
+            "system_requested": system_requested,
+            "system_selected": system_type,
         }
 
         self.write_log(log_entry)
