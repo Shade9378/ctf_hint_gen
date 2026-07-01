@@ -1,160 +1,39 @@
-import json
 import shlex
-import subprocess
-import uuid
-from datetime import datetime, timezone
 from pathlib import Path
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 
+from common.executor import DockerExecutor
+from common.logger import Logger
 
-CONTAINER_NAME = "student_shell" # container file name should be an args
-LOG_DIR = Path("data/logs")
+
+CONTAINER_NAME = "student_shell"
 
 
-def make_session_log_path() -> Path:
-    """
-    Create one new log file each time client_shell.py starts.
-
-    Format:
-    month-date-year_hour-minute-second.jsonl
-
-    Example:
-    06-29-2026_11-42-08.jsonl
-    """
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    filename = datetime.now().strftime("%m-%d-%Y_%H-%M-%S.jsonl")
-    return LOG_DIR / filename
-
-class DockerShellLogger:
+class StudentShell:
     def __init__(self, container_name: str = CONTAINER_NAME):
-        self.container_name = container_name
-        self.cwd = "/challenge"
-        self.log_path = make_session_log_path()
+        self.shell = DockerExecutor(container_name=container_name)
+        self.logger = Logger(folder_name="student")
 
-        self.write_log({
-            "time": self.timestamp(),
-            "id": str(uuid.uuid4()),
-            "action_type": "system_start",
-            "cmd": "",
-            "output": f"Client shell started. Container={self.container_name}",
-            "exit_code": 0,
-            "cwd": self.cwd,
-        })
-
-    def timestamp(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
+        self.logger.event(
+            action_type="system_start",
+            output=f"Client shell started. Container={container_name}",
+            cwd=self.shell.cwd,
+            container=container_name,
+        )
 
     def run_command(self, cmd: str) -> dict:
-        action_id = str(uuid.uuid4())
+        result = self.shell.run(cmd)
 
-        script = f"""
-cd {shlex.quote(self.cwd)} 2>/dev/null || cd /challenge
-{cmd}
-rc=$?
-printf '\\n__LOGGER_EXIT_CODE__:%s\\n' "$rc"
-printf '__LOGGER_PWD__:%s\\n' "$PWD"
-"""
-
-        result = subprocess.run(
-            ["docker", "exec", self.container_name, "bash", "-lc", script],
-            capture_output=True,
-            text=True,
+        return self.logger.event(
+            action_type="shell_command",
+            cmd=result["cmd"],
+            output=result["output"],
+            exit_code=result["exit_code"],
+            cwd=result["cwd"],
+            container=result["container"],
         )
-
-        raw_stdout = result.stdout
-        stderr = result.stderr
-
-        exit_code = None
-        new_cwd = self.cwd
-
-        output_lines = []
-        for line in raw_stdout.splitlines():
-            if line.startswith("__LOGGER_EXIT_CODE__:"):
-                try:
-                    exit_code = int(line.split(":", 1)[1])
-                except ValueError:
-                    exit_code = None
-            elif line.startswith("__LOGGER_PWD__:"):
-                new_cwd = line.split(":", 1)[1]
-            else:
-                output_lines.append(line)
-
-        self.cwd = new_cwd
-
-        output = "\n".join(output_lines)
-
-        if stderr.strip():
-            output = output + ("\n" if output else "") + stderr.strip()
-
-        log_entry = {
-            "time": self.timestamp(),
-            "id": action_id,
-            "action_type": "shell_command",
-            "cmd": cmd,
-            "output": output,
-            "exit_code": exit_code,
-            "cwd": self.cwd,
-        }
-
-        self.write_log(log_entry)
-        return log_entry
-
-    def write_log(self, entry: dict):
-        with self.log_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-    def repl(self):
-        print("Client shell started. Type commands. Type 'exit' to quit.")
-        print(f"Logging to: {self.log_path}")
-
-        history_path = Path("data/logs/.client_shell_history")
-        history_path.parent.mkdir(parents=True, exist_ok=True)
-
-        session = PromptSession(
-            history=FileHistory(str(history_path))
-        )
-        
-        while True:
-            try:
-                cmd = session.prompt(f"ctf:{self.cwd}$ ").strip()
-            except EOFError:
-                self.write_log({
-                    "time": self.timestamp(),
-                    "id": str(uuid.uuid4()),
-                    "action_type": "system_exit",
-                    "cmd": "",
-                    "output": "Client shell exited with EOF.",
-                    "exit_code": 0,
-                    "cwd": self.cwd,
-                })
-                break
-
-            if not cmd:
-                continue
-
-            if cmd in {"exit", "quit"}:
-                self.write_log({
-                    "time": self.timestamp(),
-                    "id": str(uuid.uuid4()),
-                    "action_type": "system_exit",
-                    "cmd": cmd,
-                    "output": "Client shell exited by user.",
-                    "exit_code": 0,
-                    "cwd": self.cwd,
-                })
-                print("Exiting client shell.")
-                break
-
-            parts = shlex.split(cmd)
-
-            if parts and parts[0] == "hint":
-                entry = self.handle_hint_request(cmd)
-            else:
-                entry = self.run_command(cmd)
-
-            if entry["output"]:
-                print(entry["output"])
 
     def handle_hint_request(self, cmd: str) -> dict:
         parts = shlex.split(cmd)
@@ -176,22 +55,68 @@ printf '__LOGGER_PWD__:%s\\n' "$PWD"
             f"selected_system={system_type}"
         )
 
-        log_entry = {
-            "time": self.timestamp(),
-            "id": str(uuid.uuid4()),
-            "action_type": "hint_request",
-            "cmd": cmd,
-            "output": hint_text,
-            "exit_code": 0,
-            "cwd": self.cwd,
-            "system_requested": system_requested,
-            "system_selected": system_type,
-        }
+        return self.logger.event(
+            action_type="hint_request",
+            cmd=cmd,
+            output=hint_text,
+            exit_code=0,
+            cwd=self.shell.cwd,
+            system_requested=system_requested,
+            system_selected=system_type,
+        )
 
-        self.write_log(log_entry)
-        return log_entry
+    def repl(self):
+        print("Client shell started. Type commands. Type 'exit' to quit.")
+        print(f"Logging to: {self.logger.log_path}")
+
+        history_path = Path("data/logs/.client_shell_history")
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+
+        session = PromptSession(
+            history=FileHistory(str(history_path))
+        )
+
+        while True:
+            try:
+                cmd = session.prompt(f"ctf:{self.shell.cwd}$ ").strip()
+            except EOFError:
+                self.logger.event(
+                    action_type="system_exit",
+                    output="Client shell exited with EOF.",
+                    exit_code=0,
+                    cwd=self.shell.cwd,
+                )
+                break
+
+            if not cmd:
+                continue
+
+            if cmd in {"exit", "quit"}:
+                self.logger.event(
+                    action_type="system_exit",
+                    cmd=cmd,
+                    output="Client shell exited by user.",
+                    exit_code=0,
+                    cwd=self.shell.cwd,
+                )
+                print("Exiting client shell.")
+                break
+
+            try:
+                parts = shlex.split(cmd)
+            except ValueError as e:
+                print(f"Parse error: {e}")
+                continue
+
+            if parts and parts[0] == "hint":
+                entry = self.handle_hint_request(cmd)
+            else:
+                entry = self.run_command(cmd)
+
+            if entry["output"]:
+                print(entry["output"])
 
 
 if __name__ == "__main__":
-    shell = DockerShellLogger()
+    shell = StudentShell()
     shell.repl()
