@@ -1,1 +1,7 @@
 data/logs/
+.venv
+.runtime
+
+__pycache__/
+*.py[cod]
+*$py.class
