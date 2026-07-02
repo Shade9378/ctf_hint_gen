@@ -4,6 +4,9 @@ from typing import Any, Callable, Dict, List, Optional
 from common.executor import DockerExecutor
 from common.logger import Logger
 
+from common.utils import truncate
+
+import shlex
 
 class LLMController:
     """
@@ -99,6 +102,7 @@ class LLMController:
                 return {
                     "status": "failed",
                     "reason": action["reason"],
+                    "history": self.history.copy()
                 }
 
             if action["action"] == "run_command":
@@ -122,6 +126,7 @@ class LLMController:
                 return {
                     "status": "stopped",
                     "reason": reason,
+                    "history": self.history.copy()
                 }
 
             self.logger.event(
@@ -135,6 +140,7 @@ class LLMController:
             return {
                 "status": "failed",
                 "reason": f"Unknown action: {action}",
+                "history": self.history.copy()
             }
 
         self.logger.event(
@@ -147,6 +153,7 @@ class LLMController:
         return {
             "status": "max_steps_reached",
             "reason": f"Stopped after reaching max_steps={self.max_steps}.",
+            "history": self.history.copy()
         }
 
     def handle_run_command(self, action: Dict[str, Any], step: int) -> Dict[str, Any]:
@@ -218,7 +225,7 @@ class LLMController:
             "step": step,
             "action": "run_command",
             "cmd": result["cmd"],
-            "output": result["output"],
+            "output": truncate(result["output"]),
             "exit_code": result["exit_code"],
             "cwd": result["cwd"],
             "summary": summary,
@@ -239,6 +246,7 @@ class LLMController:
             return {
                 "status": "failed",
                 "reason": "LLM submitted an empty flag.",
+                "history": self.history.copy()
             }
 
         if self.flag_checker is None:
@@ -254,6 +262,7 @@ class LLMController:
                 "status": "stopped",
                 "flag": candidate_flag,
                 "reason": "Candidate flag found, but no flag checker is attached.",
+                "history": self.history.copy()
             }
 
         is_correct = self.flag_checker(candidate_flag)
@@ -270,8 +279,7 @@ class LLMController:
             return {
                 "status": "solved",
                 "flag": candidate_flag,
-                "existing solution matched": 
-                "history": current history if "existing solution matched" = false, none otherwise
+                "history": self.history.copy()
             }
 
         self.history.append({
@@ -287,6 +295,7 @@ class LLMController:
             "status": "failed",
             "flag": candidate_flag,
             "reason": "Flag checker says incorrect.",
+            "history": self.history.copy()
         }
 
     def build_prompt(self, challenge_context: str, student_state: Optional[Dict[str, Any]] = None) -> str:
@@ -298,73 +307,73 @@ class LLMController:
             student_state_exp = """
         Before choosing your next action, use the student_state as the starting checkpoint.
 
-        student_state fields explainations:
+        student_state fields:
         - completed_work: correct/relevant work already done by the student, with evidence.
-            + objective_summary: where the solver should continue from.
-            + suggested_next_step: likely next useful solving step.
+        - objective_summary: where the solver should continue from.
+        - suggested_next_step: likely next useful solving step.
         - confidence: planner confidence: low, medium, or high.
 
         Do not redo completed_work unless verification is necessary.
         """
 
         return f"""
-You are now solving a CTF challenge inside a Docker sandbox.
+        You are now solving a CTF challenge inside a Docker sandbox.
 
-You are allowed to inspect files, run commands, write small scripts, and analyze outputs.
-You must solve the challenge step by step.
+        You are allowed to inspect files, run commands, write small scripts, and analyze outputs.
+        You must solve the challenge step by step.
 
-You will be provided:
-- Challenge description
-- Student progress state (if available) 
+        You will be provided:
+        - Challenge description
+        - Student progress state (if available) 
 
-{student_state_exp}
+        {student_state_exp}
 
-Important rules:
-- Return only valid JSON.
-- Do not return markdown.
-- Do not include extra text outside the JSON.
-- Do not ask the user questions.
-- Do not claim the flag is correct unless you submit it using the submit_flag action.
-- If you need to inspect something, use run_command.
-- If you find a candidate flag, use submit_flag.
-- If you are stuck, use stop.
+        Important rules:
+        - Return only valid JSON.
+        - Do not return markdown.
+        - Do not include extra text outside the JSON.
+        - Do not ask the user questions.
+        - Do not claim the flag is correct unless you submit it using the submit_flag action.
+        - If you need to inspect something, use run_command.
+        - If you find a candidate flag, use submit_flag.
+        - If you are stuck, use stop.
 
-Available actions:
+        Available actions:
 
-1. Run a shell command:
+        1. Run a shell command:
 
-{{
-  "action": "run_command",
-  "cmd": "ls -la",
-  "summary": "Brief reason for this command."
-}}
+        {{
+        "action": "run_command",
+        "cmd": "ls -la",
+        "summary": "Brief reason for this command."
+        }}
 
-2. Submit a candidate flag:
+        2. Submit a candidate flag:
 
-{{
-  "action": "submit_flag",
-  "flag": "picoCTF{{...}}",
-  "summary": "Brief reason this looks like the flag."
-}}
+        {{
+        "action": "submit_flag",
+        "flag": "picoCTF{{...}}",
+        "summary": "Brief reason this looks like the flag."
+        }}
 
-3. Stop:
+        3. Stop:
 
-{{
-  "action": "stop",
-  "reason": "Brief reason for stopping."
-}}
+        {{
+        "action": "stop",
+        "reason": "Brief reason for stopping."
+        }}
 
-Challenge context:
-{challenge_context}
+        Challenge context:
+        {challenge_context}
 
-Student progress state:
-{json.dumps(student_state, indent=2) if student_state else "student progress state not available"}
+        Student progress state:
+        {json.dumps(student_state, indent=2) if student_state else "student progress state not available"}
 
-Your recent command history:
-{json.dumps(recent_history, indent=2)}
+        Your recent command history:
+        {json.dumps(recent_history, indent=2)}
 
-Return the next action as JSON only.
-""".strip()
+        Return the next action as JSON only.
+        """.strip()
 
     def parse_action(self, llm_response: str) -> Dict[str, Any]:
         if llm_response is None:
@@ -424,13 +433,6 @@ Return the next action as JSON only.
         return action
 
     def validate_command(self, cmd: str) -> tuple:
-        """
-        Basic command validator.
-
-        This is not a perfect security layer.
-        It mainly prevents common commands that would hang forever or escape the intended flow.
-        The real isolation should come from Docker.
-        """
         blocked_exact = {
             "exit",
             "logout",
@@ -439,15 +441,12 @@ Return the next action as JSON only.
             "poweroff",
         }
 
-        blocked_prefixes = (
-            "docker ",
-            "sudo ",
-            "su ",
-            "ssh ",
-            "scp ",
-            "nc -l",
-            "python -i",
-            "python3 -i",
+        blocked_programs = {
+            "docker",
+            "sudo",
+            "su",
+            "ssh",
+            "scp",
             "bash",
             "sh",
             "zsh",
@@ -461,15 +460,30 @@ Return the next action as JSON only.
             "top",
             "htop",
             "watch",
-        )
+        }
 
         stripped = cmd.strip()
 
         if stripped in blocked_exact:
             return False, "Command exits or controls the environment."
 
-        for prefix in blocked_prefixes:
-            if stripped.startswith(prefix):
-                return False, f"Interactive or unsafe command prefix blocked: {prefix.strip()}"
+        try:
+            parts = shlex.split(stripped)
+        except ValueError as e:
+            return False, f"Could not parse command: {e}"
+
+        if not parts:
+            return False, "Empty command."
+
+        executable = parts[0]
+
+        if executable in blocked_programs:
+            return False, f"Interactive or unsafe command blocked: {executable}"
+
+        if executable == "nc" and "-l" in parts:
+            return False, "Listening netcat commands are blocked."
+
+        if executable in {"python", "python3"} and "-i" in parts:
+            return False, "Interactive Python is blocked."
 
         return True, "ok"
