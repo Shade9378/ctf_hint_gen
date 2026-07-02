@@ -54,7 +54,7 @@ class LLMController:
 
         self.history: List[Dict[str, Any]] = []
 
-    def run(self, challenge_context: str) -> Dict[str, Any]:
+    def run(self, challenge_context: str, student_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Main solving loop.
 
@@ -74,7 +74,7 @@ class LLMController:
         )
 
         for step in range(1, self.max_steps + 1):
-            prompt = self.build_prompt(challenge_context)
+            prompt = self.build_prompt(challenge_context=challenge_context, student_state=student_state)
 
             llm_response = self.model_client.generate(prompt)
 
@@ -270,6 +270,8 @@ class LLMController:
             return {
                 "status": "solved",
                 "flag": candidate_flag,
+                "existing solution matched": 
+                "history": current history if "existing solution matched" = false, none otherwise
             }
 
         self.history.append({
@@ -287,16 +289,35 @@ class LLMController:
             "reason": "Flag checker says incorrect.",
         }
 
-    def build_prompt(self, challenge_context: str) -> str:
+    def build_prompt(self, challenge_context: str, student_state: Optional[Dict[str, Any]] = None) -> str:
         recent_history = self.history[-10:]
 
+        student_state_exp = ""
+
+        if student_state:
+            student_state_exp = """
+        Before choosing your next action, use the student_state as the starting checkpoint.
+
+        student_state fields explainations:
+        - completed_work: correct/relevant work already done by the student, with evidence.
+            + objective_summary: where the solver should continue from.
+            + suggested_next_step: likely next useful solving step.
+        - confidence: planner confidence: low, medium, or high.
+
+        Do not redo completed_work unless verification is necessary.
+        """
+
         return f"""
-
-
 You are now solving a CTF challenge inside a Docker sandbox.
 
 You are allowed to inspect files, run commands, write small scripts, and analyze outputs.
 You must solve the challenge step by step.
+
+You will be provided:
+- Challenge description
+- Student progress state (if available) 
+
+{student_state_exp}
 
 Important rules:
 - Return only valid JSON.
@@ -336,7 +357,10 @@ Available actions:
 Challenge context:
 {challenge_context}
 
-Recent command history:
+Student progress state:
+{json.dumps(student_state, indent=2) if student_state else "student progress state not available"}
+
+Your recent command history:
 {json.dumps(recent_history, indent=2)}
 
 Return the next action as JSON only.
