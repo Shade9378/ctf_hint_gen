@@ -9,7 +9,7 @@ class StatePlanner:
     def __init__(
         self,
         model_client: Any,
-        log_folder: str = "llm",
+        log_folder: str = "llm/state_planner",
         max_log_entries: int = 30,
     ):
         self.model_client = model_client

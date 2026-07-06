@@ -25,7 +25,7 @@ class LLMController:
         self,
         model_client: Any,
         container_name: str = "llm_shell",
-        log_folder: str = "llm",
+        log_folder: str = "llm/solver",
         max_steps: int = 30,
         flag_checker: Optional[Callable[[str], bool]] = None,
     ):
@@ -375,7 +375,7 @@ class LLMController:
         Return the next action as JSON only.
         """.strip()
 
-    def parse_action(self, llm_response: str) -> Dict[str, Any]:
+    def parse_response(self, llm_response: str) -> Dict[str, Any]:
         if llm_response is None:
             return {
                 "action": "error",
