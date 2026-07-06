@@ -61,13 +61,7 @@ class LLMHintGenerator:
         return f"""
 You are now a CTF hint generator.
 
-Your job is to generate a helpful next-step hint for a student based on:
-1. The student's current progress state.
-2. The solution trajectory.
-3. The public challenge context.
-4. The requested hint level.
-
-The hint should guide the student toward the next correct step without directly giving away the full solution.
+Your job is to generate a helpful next-step hint. The hint should guide the student toward the next correct step without directly giving away the full solution.
 
 You will be provided:
 - student_state: a compact summary of the student's valid progress.
@@ -77,7 +71,6 @@ You will be provided:
   - llm_history: the LLM solver's continuation after the student state.
   - final_flag_found: whether the solver found the final flag.
 - challenge_context: public challenge description/context.
-- requested hint level.
 
 Important:
 - Do not reveal the final flag.
