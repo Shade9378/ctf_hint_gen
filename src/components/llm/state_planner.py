@@ -1,8 +1,8 @@
 import json
 from typing import Any, Dict, Optional
 
-from common.utils import read_log, compact_log
-from common.logger import Logger
+from src.common.utils import read_log, compact_log as compact_student_log
+from src.common.logger import Logger
 
 
 class StatePlanner:
@@ -24,12 +24,29 @@ class StatePlanner:
         solution_graph: Optional[dict] = None,
     ) -> Dict[str, Any]:
         entries = read_log(student_log_path)
-        compact_log = compact_log(entries, max_entries=self.max_log_entries)
+
+        return self.plan(
+            student_logs=entries,
+            challenge_context=challenge_context,
+            solution=solution_graph,
+        )
+
+    def plan(
+        self,
+        *,
+        student_logs: list[dict],
+        challenge_context: str,
+        solution: Optional[dict] = None,
+    ) -> Dict[str, Any]:
+        compacted_log = compact_student_log(
+            student_logs,
+            max_entries=self.max_log_entries,
+        )
 
         prompt = self.build_prompt(
             challenge_context=challenge_context,
-            compact_log=compact_log,
-            solution_graph=solution_graph,
+            compact_log=compacted_log,
+            solution_graph=solution,
         )
 
         response = self.model_client.generate(prompt)
@@ -73,22 +90,22 @@ Judge:
 
 Return this exact JSON shape:
 
-{
+{{
   "action": "matched_existing_graph | continue_from_student_state | start_from_scratch",
   "student_actions_relevant": true,
   "path_valid": true,
   "use_student_progress": true,
   "matched_step": null,
   "completed_work": [
-    {
+    {{
       "summary": "Brief summary of what the student has done correctly.",
       "evidence": "Concrete command/output evidence from the log."
-    }
+    }}
   ],
   "objective_summary": "Where the solver should continue from.",
   "suggested_next_step": "The next likely useful step.",
   "confidence": "low | medium | high"
-}
+}}
 
 - completed_work should include only correct/relevant progress.
 - Do not include failed commands unless they directly prove something useful.

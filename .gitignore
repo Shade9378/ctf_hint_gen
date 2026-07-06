@@ -5,3 +5,7 @@ data/logs/
 __pycache__/
 *.py[cod]
 *$py.class
+
+hint_gen.egg-info
+
+data/challenges/private/test_challenge.json

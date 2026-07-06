@@ -2,11 +2,11 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from components.flag_checker import make_flag_checker
-from components.llm.solution_builder import build_solution
+from src.components.flag_checker import make_flag_checker
+from src.components.llm.solution_builder import build_solution
 
-from components.llm.controller import LLMController
-from components.llm.hint_gen import LLMHintGenerator
+from src.components.llm.controller import LLMController
+from src.components.llm.hint_gen import LLMHintGenerator
 
 
 class LLMSystem:

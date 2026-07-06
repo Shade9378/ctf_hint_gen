@@ -1,10 +1,10 @@
 import json
 from typing import Any, Callable, Dict, List, Optional
 
-from common.executor import DockerExecutor
-from common.logger import Logger
+from src.common.executor import DockerExecutor
+from src.common.logger import Logger
 
-from common.utils import truncate
+from src.common.utils import truncate
 
 import shlex
 
@@ -88,7 +88,7 @@ class LLMController:
                 step=step,
             )
 
-            action = self.parse_action(llm_response)
+            action = self.parse_response(llm_response)
 
             if action["action"] == "error":
                 self.logger.event(

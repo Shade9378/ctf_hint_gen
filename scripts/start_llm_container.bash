@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-docker build -f Dockerfile.student_shell -t ctf-shell-env .
+docker build -f Dockerfile.shell -t ctf-shell-env .
 
 docker rm -f llm_shell 2>/dev/null || true
 
