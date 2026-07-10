@@ -1,0 +1,20 @@
+{
+  "levels": {
+    "level_1_conceptual": {
+      "name": "Conceptual hint",
+      "template": "Concept: {concept}\n\nGoal: {goal}"
+    },
+    "level_2_observation": {
+      "name": "Observation hint",
+      "template": "Look for this kind of evidence: {observation}"
+    },
+    "level_3_method_tool": {
+      "name": "Tool-usage hint",
+      "template": "A useful method type here is: {tool_used}\n\nReason: {goal}"
+    },
+    "level_4_bottom_out": {
+      "name": "Bottom-out hint",
+      "template": "Bottom-out hint: {next_cmd}"
+    }
+  }
+}

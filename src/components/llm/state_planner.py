@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from src.common.utils import read_log, compact_log as compact_student_log
 from src.common.logger import Logger
 
-
+# WE NEED TO UNDERSTAND WHY THE STUDENT IS STUCK, NOT JUST CURRENT STUDENT STATE, LIKE WHAT IF THEY ARE STUCK CAUSE SYNTAX PROBLEMS
 class StatePlanner:
     def __init__(
         self,
@@ -98,11 +98,11 @@ Return this exact JSON shape:
   "matched_step": null,
   "completed_work": [
     {{
-      "summary": "Brief summary of what the student has done correctly.",
+      "summary": "Brief summary of what the student has done correctly MAYBE WHERE THEY ARE CURRENTLY STUCK AT? WHY? SYNTAX ERROR? WHAT?.",
       "evidence": "Concrete command/output evidence from the log."
     }}
   ],
-  "objective_summary": "Where the solver should continue from.",
+  "objective_summary": "Where the solver should continue from.", /// MAYBE ADD SUGGESTION TYPE
   "suggested_next_step": "The next likely useful step.",
   "confidence": "low | medium | high"
 }}

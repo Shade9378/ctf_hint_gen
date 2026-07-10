@@ -1,0 +1,98 @@
+{
+  "challenge_id": "operation_oni",
+  "challenge_name": "Operation Oni",
+  "success_evidence": "picoCTF\\{[^}]+\\}",
+  "milestones": [
+    {
+      "milestone": "disk_image_available",
+      "output_evidence": "disk\\.img\\.gz\\b|[^\\s]+\\.img\\.gz\\b",
+      "goal": "confirm that the compressed disk image is available before analysis",
+      "concept": "Forensics challenges often begin with an artifact that must be obtained before any analysis can happen.",
+      "tool_used": "file listing or file inspection method",
+      "observation": "The visible output should show a compressed disk image artifact, such as a .img.gz file.",
+      "next_cmd": "Check the working directory output and confirm that the compressed disk image is present."
+    },
+    {
+      "milestone": "disk_image_extracted",
+      "output_evidence": "(?<![\\w.])disk\\.img(?!\\.gz)\\b|[^\\s]+\\.img(?!\\.gz)\\b",
+      "goal": "work with the extracted raw disk image rather than the compressed archive",
+      "concept": "Compressed artifacts need to be unpacked before lower-level disk or filesystem analysis.",
+      "tool_used": "decompression method",
+      "observation": "The visible output should show an extracted .img file.",
+      "next_cmd": "Extract the compressed disk image and confirm from the output that the raw image exists."
+    },
+    {
+      "milestone": "partition_offset_found",
+      "output_evidence": "(Linux|83 Linux|Linux filesystem|0000206848|206848)",
+      "goal": "identify where the useful Linux filesystem begins inside the disk image",
+      "concept": "A disk image can contain partitions, and filesystem analysis often needs the partition start offset.",
+      "tool_used": "partition table inspection method",
+      "observation": "The visible output should show a Linux partition entry and its start sector.",
+      "next_cmd": "Inspect the disk image partition layout and note the Linux partition start sector."
+    },
+    {
+      "milestone": "ssh_key_path_found",
+      "output_evidence": "(root/)?\\.ssh/(id_ed25519|id_rsa)\\b",
+      "goal": "locate the SSH private key inside the recovered filesystem",
+      "concept": "SSH authentication material is commonly stored inside .ssh directories.",
+      "tool_used": "filesystem listing or filesystem search method",
+      "observation": "The visible output should show an SSH private-key-looking path inside the filesystem listing.",
+      "next_cmd": "Search or list the filesystem contents at the correct partition offset and look for SSH-related files."
+    },
+    {
+      "milestone": "ssh_key_inode_found",
+      "output_evidence": "(?:r/r|r-)?\\s*\\d+:\\s+.*\\.ssh/(id_ed25519|id_rsa)\\b",
+      "goal": "identify the filesystem record number needed to extract the private key",
+      "concept": "Filesystem recovery tools often identify files using inode or metadata numbers.",
+      "tool_used": "filesystem listing method that shows metadata numbers",
+      "observation": "The visible output should show a number before the SSH private key path.",
+      "next_cmd": "Use the number shown before the private key path as the extraction target for that file."
+    },
+    {
+      "milestone": "private_key_extraction_attempted",
+      "input_evidence": "\\bicat\\b.*\\s-o\\s+\\d+\\s+\\S*disk\\.img\\s+\\d+\\s*>\\s*\\S+",
+      "goal": "extract the candidate private key from the disk image",
+      "concept": "Filesystem recovery often requires extracting a specific file record from the image.",
+      "tool_used": "file extraction method using a partition offset and file record number",
+      "observation": "The command input should show an extraction attempt using the partition offset, disk image, inode, and redirected output file.",
+      "next_cmd": "Use the partition offset and private-key inode to extract the key into a local file."
+    },
+    {
+      "milestone": "private_key_validated",
+      "output_evidence": "-----BEGIN OPENSSH PRIVATE KEY-----",
+      "goal": "confirm that the extracted file is actually an OpenSSH private key",
+      "concept": "Recovered credential files should be inspected before they are used.",
+      "tool_used": "file content inspection method",
+      "observation": "The visible output should show the OpenSSH private key header.",
+      "next_cmd": "Print the beginning of the extracted key file and confirm that it starts with the OpenSSH private key header."
+    },
+    {
+      "milestone": "key_usable_for_ssh",
+      "input_evidence": "\\bchmod\\b\\s+600\\s+\\S+",
+      "output_evidence": "(-rw-------|\\b600\\b|Last login|ctf-player@)",
+      "goal": "make sure the recovered private key is acceptable for SSH authentication",
+      "concept": "SSH private keys usually need owner-only permissions before the SSH client will use them.",
+      "tool_used": "permission adjustment or SSH authentication method",
+      "observation": "The command input should show a permission adjustment, or the visible output should show owner-only key permissions or successful authentication.",
+      "next_cmd": "Make the private key owner-only readable/writable, then try the provided SSH login again."
+    },
+    {
+      "milestone": "remote_login_successful",
+      "output_evidence": "(Last login|Welcome|ctf-player@[^\\n]*[$#])",
+      "goal": "access the remote challenge machine using the recovered private key",
+      "concept": "The recovered credential should authenticate to the remote service described by the challenge.",
+      "tool_used": "SSH client",
+      "observation": "The visible output should show that a remote shell session has started.",
+      "next_cmd": "Use the recovered private key with the SSH connection information from the challenge."
+    },
+    {
+      "milestone": "flag_found",
+      "output_evidence": "picoCTF\\{[^}]+\\}",
+      "goal": "recover the final flag from the remote machine",
+      "concept": "After authentication, the final objective is usually a flag file or flag string.",
+      "tool_used": "file listing and file reading method",
+      "observation": "The visible output should contain the final picoCTF flag format.",
+      "next_cmd": "Look for the flag file on the remote machine and print its contents."
+    }
+  ]
+}

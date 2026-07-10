@@ -4,8 +4,8 @@ from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 
-from common.executor import DockerExecutor
-from common.logger import Logger
+from src.common.executor import DockerExecutor
+from src.common.logger import Logger
 
 
 CONTAINER_NAME = "student_shell"
