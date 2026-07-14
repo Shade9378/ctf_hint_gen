@@ -9,18 +9,6 @@ from src.common.utils import truncate
 import shlex
 
 class LLMController:
-    """
-    Controller for the LLM solver.
-
-    Flow:
-        1. Build prompt from challenge context + command history
-        2. Ask LLM for next structured action
-        3. Parse the action JSON
-        4. Execute commands inside llm_shell using DockerExecutor
-        5. Log LLM responses, commands, outputs, and flag checks
-        6. Repeat until solved, stopped, or max_steps reached
-    """
-
     def __init__(
         self,
         model_client: Any,

@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional
 
 @dataclass(frozen=True)
 class MilestoneMatch:
-    """Match result for one milestone in the progress model."""
     milestone: str
     reached: bool
 

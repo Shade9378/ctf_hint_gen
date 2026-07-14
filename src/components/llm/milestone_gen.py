@@ -7,14 +7,6 @@ JsonInput = Union[Dict[str, Any], List[Dict[str, Any]], str, Path]
 
 
 class LLMMilestoneGenerator:
-    """
-    Generate a rule-based milestone model from an existing solution artifact.
-
-    The generated model is intended to match the shape consumed by
-    MilestoneMatcher, for example data/challenges/private/operation_oni/
-    solution_model.json.
-    """
-
     REQUIRED_TOP_LEVEL_FIELDS = {
         "challenge_id",
         "challenge_name",

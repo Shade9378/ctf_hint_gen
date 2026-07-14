@@ -6,21 +6,6 @@ JsonInput = Union[Dict[str, Any], List[Dict[str, Any]], str, Path]
 
 
 class LLMHintGenerator:
-    """
-    LLM-based CTF hint generator.
-
-    Takes:
-        - student_state:
-            Either raw student log entries OR milestone matcher output.
-        - solution:
-            Known solution trajectory / generated solution trace / writeup-derived solution.
-        - challenge_context:
-            Public challenge description/context.
-
-    Returns:
-        Structured hint JSON with all 4 hint levels.
-    """
-
     def __init__(self, model_client: Any):
         self.model_client = model_client
 
