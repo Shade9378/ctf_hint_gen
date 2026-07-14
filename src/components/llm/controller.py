@@ -57,7 +57,7 @@ class LLMController:
 
         self.history: List[Dict[str, Any]] = []
 
-    def run(self, challenge_context: str, student_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def run(self, challenge_context: str) -> Dict[str, Any]:
         """
         Main solving loop.
 
@@ -68,6 +68,8 @@ class LLMController:
                 "reason": "... optional ..."
             }
         """
+        self.history = []
+        
         self.logger.event(
             action_type="system_start",
             output=f"LLM controller started. Container={self.executor.container_name}",
@@ -77,7 +79,7 @@ class LLMController:
         )
 
         for step in range(1, self.max_steps + 1):
-            prompt = self.build_prompt(challenge_context=challenge_context, student_state=student_state)
+            prompt = self.build_prompt(challenge_context=challenge_context)
 
             llm_response = self.model_client.generate(prompt)
 
@@ -298,23 +300,8 @@ class LLMController:
             "history": self.history.copy()
         }
 
-    def build_prompt(self, challenge_context: str, student_state: Optional[Dict[str, Any]] = None) -> str:
+    def build_prompt(self, challenge_context: str) -> str:
         recent_history = self.history[-10:]
-
-        student_state_exp = ""
-
-        if student_state:
-            student_state_exp = """
-        Before choosing your next action, use the student_state as the starting checkpoint.
-
-        student_state fields:
-        - completed_work: correct/relevant work already done by the student, with evidence.
-        - objective_summary: where the solver should continue from.
-        - suggested_next_step: likely next useful solving step.
-        - confidence: planner confidence: low, medium, or high.
-
-        Do not redo completed_work unless verification is necessary.
-        """
 
         return f"""
         You are now solving a CTF challenge inside a Docker sandbox.
@@ -324,9 +311,6 @@ class LLMController:
 
         You will be provided:
         - Challenge description
-        - Student progress state (if available) 
-
-        {student_state_exp}
 
         Important rules:
         - Return only valid JSON.
@@ -365,9 +349,6 @@ class LLMController:
 
         Challenge context:
         {challenge_context}
-
-        Student progress state:
-        {json.dumps(student_state, indent=2) if student_state else "student progress state not available"}
 
         Your recent command history:
         {json.dumps(recent_history, indent=2)}
