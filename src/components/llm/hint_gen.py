@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 JsonInput = Union[Dict[str, Any], List[Dict[str, Any]], str, Path]
 
@@ -15,15 +15,22 @@ class LLMHintGenerator:
         student_state: JsonInput,
         solution: JsonInput,
         challenge_context: str,
+        hint_template: Optional[JsonInput] = None,
     ) -> Dict[str, Any]:
 
         student_state_data = self.load_json_input(student_state)
         solution_data = self.load_json_input(solution)
+        hint_template_data = (
+            self.load_json_input(hint_template)
+            if hint_template is not None
+            else None
+        )
 
         prompt = self.build_prompt(
             student_state=student_state_data,
             solution=solution_data,
             challenge_context=challenge_context,
+            hint_template=hint_template_data,
         )
 
         llm_response = self.model_client.generate(prompt)
@@ -54,7 +61,20 @@ class LLMHintGenerator:
         student_state: Union[Dict[str, Any], List[Dict[str, Any]]],
         solution: Union[Dict[str, Any], List[Dict[str, Any]]],
         challenge_context: str,
+        hint_template: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
     ) -> str:
+        template_suggestion = ""
+
+        if hint_template is not None:
+            template_suggestion = f"""
+Optional hint template suggestion:
+The following JSON is an example style/template you may follow when wording the hints.
+Treat it as guidance only. The final answer must still match the required output schema,
+avoid leakage, and adapt to the student's actual state.
+
+{json.dumps(hint_template, indent=2)}
+""".strip()
+
         return f"""
 You are now a CTF hint generator.
 
@@ -145,6 +165,8 @@ Student state:
 
 Solution:
 {json.dumps(solution, indent=2)}
+
+{template_suggestion}
 
 Return JSON in this exact shape:
 
