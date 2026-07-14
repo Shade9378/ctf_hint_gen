@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
+
+JsonInput = Union[Dict[str, Any], List[Dict[str, Any]], str, Path]
 
 
 class LLMHintGenerator:
@@ -8,29 +10,33 @@ class LLMHintGenerator:
     LLM-based CTF hint generator.
 
     Takes:
-        - student_state
-        - solution file or solution dict
-        - challenge_context
+        - student_state:
+            Either raw student log entries OR milestone matcher output.
+        - solution:
+            Known solution trajectory / generated solution trace / writeup-derived solution.
+        - challenge_context:
+            Public challenge description/context.
 
     Returns:
-        Structured hint JSON.
+        Structured hint JSON with all 4 hint levels.
     """
 
     def __init__(self, model_client: Any):
-        self.model_client = model_client # Add log for hint_gen 
+        self.model_client = model_client
 
     def generate(
         self,
         *,
-        student_state: Dict[str, Any],
-        solution: Union[Dict[str, Any], str, Path],
-        challenge_context: str
+        student_state: JsonInput,
+        solution: JsonInput,
+        challenge_context: str,
     ) -> Dict[str, Any]:
 
-        solution_data = self.load_solution(solution)
+        student_state_data = self.load_json_input(student_state)
+        solution_data = self.load_json_input(solution)
 
         prompt = self.build_prompt(
-            student_state=student_state,
+            student_state=student_state_data,
             solution=solution_data,
             challenge_context=challenge_context,
         )
@@ -39,95 +45,139 @@ class LLMHintGenerator:
 
         return self.parse_response(llm_response)
 
-    def load_solution(
-        self,
-        solution: Union[Dict[str, Any], str, Path],
-    ) -> Dict[str, Any]:
-        if isinstance(solution, dict):
-            return solution
+    def load_json_input(self, value: JsonInput) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        if isinstance(value, (dict, list)):
+            return value
 
-        solution_path = Path(solution)
+        path = Path(value)
 
-        with solution_path.open("r", encoding="utf-8") as f:
+        if path.suffix == ".jsonl":
+            entries = []
+            with path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        entries.append(json.loads(line))
+            return entries
+
+        with path.open("r", encoding="utf-8") as f:
             return json.load(f)
 
     def build_prompt(
         self,
         *,
-        student_state: Dict[str, Any],
-        solution: Dict[str, Any],
-        challenge_context: str
+        student_state: Union[Dict[str, Any], List[Dict[str, Any]]],
+        solution: Union[Dict[str, Any], List[Dict[str, Any]]],
+        challenge_context: str,
     ) -> str:
         return f"""
-You are now a CTF hint generator.
+        You are now a CTF hint generator.
 
-Your job is to generate a helpful next-step hint. The hint should guide the student toward the next correct step without directly giving away the full solution.
+        Your job is to generate helpful next-step hints for a student.
+        The hints should guide the student toward the next correct step without directly giving away the full solution.
 
-You will be provided:
-- student_state: a compact summary of the student's valid progress.
-- solution: the known solution trajectory. It may contain:
-  - student_prefix: valid work already completed by the student.
-  - history: the LLM solver's continuation after the student state.
-  - llm_history: the LLM solver's continuation after the student state.
-  - final_flag_found: whether the solver found the final flag.
-- challenge_context: public challenge description/context.
+        You will be provided:
 
-Important:
-- Do not reveal the final flag.
-- Do not reveal a full exploit script.
-- Do not reveal a full payload.
-- Do not reveal the complete solve sequence.
-- Do not include markdown.
-- Return only valid JSON.
+        1. student_state
 
-Your process:
-1. Read student_state and identify what the student has already completed.
-2. Read the solution trajectory and locate the student's current position.
-3. Identify the next unresolved step.
-4. Generate four hints for the next unresolved step, one for each hint level.
-5. Select the hint that corresponds to the requested hint level.
-6. If the student's path appears invalid or unclear, redirect them toward the earliest relevant unresolved step.
+        student_state may be one of two formats:
 
-Hint levels:
+        Format A: Raw student log
+        - Usually a list of log entries.
+        - Entries may contain fields such as:
+        - action_type
+        - cmd
+        - output
+        - exit_code
+        - cwd
+        - Commands show what the student attempted.
+        - Outputs show what the student actually discovered.
+        - Do not mark progress as completed just because the student ran a command.
+        - Mark progress as completed only when the output or observed result provides concrete evidence.
 
-Level 1: Conceptual hint
-Give a high-level concept or idea. Do not mention exact commands, tools, filenames, payloads, or solution steps.
+        Format B: Milestone matcher output
+        - Usually a dict containing fields such as:
+        - solved
+        - success_match
+        - milestones
+        - next_milestone
+        - If student_state contains "milestones" and "next_milestone", treat it as rule-based milestone matcher output.
+        - In this case, trust the reached/unreached milestone statuses unless they obviously contradict the solution.
+        - Use next_milestone as the target for the hints.
 
-Level 2: Observation hint
-Point out what kind of evidence the student should notice in their current output or challenge artifact. Do not name the exact tool or command.
+        2. solution
 
-Level 3: Tool-usage hint
-Suggest the type of tool or method that would help, but do not provide a complete command unless the command is very generic and does not reveal the solution.
+        solution is the known solution trajectory, generated solution trace, or writeup-derived solution.
+        It may contain:
+        - history
+        - milestones
+        - commands
+        - inputs
+        - outputs
+        - final_flag_found
 
-Level 4: Bottom-out hint
-Give the most direct next step that is still safe. You may provide a concrete next action, but do not reveal the final flag, full exploit script, full payload, or complete solve sequence.
+        3. challenge_context
 
-Challenge context:
-{challenge_context}
+        challenge_context is the public challenge description/context.
 
-Student state:
-{json.dumps(student_state, indent=2)}
+        Important:
+        - Generate all four hint levels in one response.
+        - Do not reveal the final flag.
+        - Do not reveal a full exploit script.
+        - Do not reveal a full payload.
+        - Do not reveal the complete solve sequence.
+        - Do not include markdown.
+        - Return only valid JSON.
 
-Solution:
-{json.dumps(solution, indent=2)}
+        Your process:
+        1. Determine whether student_state is raw log format or milestone matcher format.
+        2. Identify what the student has already completed.
+        3. Identify the next unresolved step.
+        4. If milestone matcher output is available, prefer student_state["next_milestone"] as the next target.
+        5. If only raw logs are available, compare the logs against the solution trajectory to infer the next target.
+        6. Generate four hints for the next target, one for each hint level.
+        7. Keep all hints student-facing, helpful, and non-leaky.
 
-Return JSON in this exact shape:
+        Hint levels:
 
-{{
-  "matched_step": "step id, step number, or null",
-  "next_step": "next step id, step number, or brief next-step description",
-  "student_state_summary": "brief summary of what the student has already done",
-  "selected_hint": "the hint matching the requested hint level",
-  "hints": {{
-    "level_1_conceptual": "hint text",
-    "level_2_observation": "hint text",
-    "level_3_method_tool": "hint text",
-    "level_4_bottom_out": "hint text"
-  }},
-  "leakage_risk": "low | medium | high",
-  "leakage_notes": "brief explanation of why the hints are safe or risky"
-}}
-""".strip()
+        Level 1: Conceptual hint
+        Give a high-level concept or idea. Do not mention exact commands, tools, filenames, payloads, addresses, offsets, or solution steps.
+
+        Level 2: Observation hint
+        Point out what kind of evidence the student should notice in their current output or challenge artifact. Do not name the exact command.
+
+        Level 3: Tool-usage hint
+        Suggest the type of tool or method that would help, but do not provide a complete command unless the command is generic and non-revealing.
+
+        Level 4: Bottom-out hint
+        Give the most direct next step that is still safe. You may provide a concrete next action, but do not reveal the final flag, full exploit script, full payload, or complete solve sequence.
+
+        Challenge context:
+        {challenge_context}
+
+        Student state:
+        {json.dumps(student_state, indent=2)}
+
+        Solution:
+        {json.dumps(solution, indent=2)}
+
+        Return JSON in this exact shape:
+
+        {{
+        "student_state_format": "raw_log | milestone_matcher | unknown",
+        "matched_step": "step id, step number, milestone name, or null",
+        "next_step": "next step id, step number, milestone name, or brief next-step description",
+        "student_state_summary": "brief summary of what the student has already done",
+        "hints": {{
+            "level_1_conceptual": "hint text",
+            "level_2_observation": "hint text",
+            "level_3_method_tool": "hint text",
+            "level_4_bottom_out": "hint text"
+        }},
+        "leakage_risk": "low | medium | high",
+        "leakage_notes": "brief explanation of why the hints are safe or risky"
+        }}
+        """.strip()
 
     def parse_response(self, llm_response: str) -> Dict[str, Any]:
         if llm_response is None:

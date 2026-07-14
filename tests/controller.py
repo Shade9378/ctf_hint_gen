@@ -28,26 +28,9 @@ if __name__ == "__main__":
         max_steps=5,
     )
 
-    student_state = {
-        "action": "continue_from_student_state",
-        "student_actions_relevant": True,
-        "path_valid": True,
-        "use_student_progress": True,
-        "matched_step": None,
-        "completed_work": [
-            {
-                "summary": "Student already listed the challenge files.",
-                "evidence": "Student ran ls and saw the challenge artifacts.",
-            }
-        ],
-        "objective_summary": "Continue from basic file inspection.",
-        "suggested_next_step": "Inspect the available files more closely.",
-        "confidence": "medium",
-    }
 
     result = controller.run(
-        challenge_context="Fake challenge context for testing.",
-        student_state=student_state,
+        challenge_context="Fake challenge context for testing."
     )
 
     print("\nFinal result:")

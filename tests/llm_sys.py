@@ -1,30 +1,13 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from src.systems.llm_system import LLMSystem
-from tests.fake_model import FakeModelClient
 
+# If running with: python tests/llm_sys.py
+from fake_model import FakeModelClient
 
-class FakeStatePlanner:
-    def plan(
-        self,
-        *,
-        student_logs: List[Dict[str, Any]],
-        challenge_context: str,
-        solution: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        return {
-            "action": "start_from_scratch",
-            "student_actions_relevant": False,
-            "path_valid": True,
-            "use_student_progress": False,
-            "matched_step": None,
-            "completed_work": [],
-            "objective_summary": "Start from initial challenge inspection.",
-            "suggested_next_step": "Begin by inspecting the challenge files.",
-            "confidence": "medium",
-        }
+# If running with: python -m tests.llm_sys
+# from tests.fake_model import FakeModelClient
 
 
 if __name__ == "__main__":
@@ -55,6 +38,7 @@ if __name__ == "__main__":
                 "summary": "Fake model directly submits the known test flag.",
             },
             {
+                "student_state_format": "raw_log",
                 "matched_step": None,
                 "next_step": "Inspect the challenge files.",
                 "student_state_summary": "The student has not made meaningful progress yet.",
@@ -72,14 +56,13 @@ if __name__ == "__main__":
 
     system = LLMSystem(
         model_client=fake_model,
-        state_planner=FakeStatePlanner(),
         private_challenge_path=private_path,
         solution_path=solution_path,
         max_steps=5,
     )
 
     result = system.run(
-        student_logs=[],
+        student_state=[],
         challenge_context="Public fake challenge context.",
     )
 
